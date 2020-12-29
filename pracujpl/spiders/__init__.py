@@ -11,7 +11,7 @@ import scrapy
 from pracujpl import settings
 
 # CONSTANTS
-PRACUJPL_LINK_WITH_SOME_FILTERS = 'https://www.pracuj.pl/praca/doradca%20klienta%20w%20banku-x44-praca%20w%20banku-x44-doradca%20klienta;kw/szczecin;wp?rd=15&tc=0&ws=0'
+PRACUJPL_LINK_WITH_SOME_FILTERS = 'https://www.pracuj.pl/praca/doradca%20klienta%20w%20banku-x44-praca%20w%20banku-x44-doradca%20klienta;kw/szczecin;wp/ing%20bank%20%c5%9bl%c4%85ski%20s.a.;en?rd=15&tc=0&ws=0'
 DATE_FORMAT = '{:%Y-%m-%d %H:%M}'.format(datetime.now())
 
 # JSON RELATED CONSTANTS
@@ -70,7 +70,7 @@ class PracujplSpider(scrapy.Spider):
             yield scrapy.Request(url=url, callback=self.parse)
 
     def parse(self, response, **kwargs):
-        filtered_actual_href_links = [href for href in get_job_link_hrefs(response) if re.search('doradca', href)]
+        filtered_actual_href_links = [href for href in get_job_link_hrefs(response) if re.search('ing bank', href)]
 
         if not os.path.exists(os.path.join(os.getcwd(), JSON_DUMP_FILE_NAME)):
             save_unique_href_links_as_json(list())
@@ -101,7 +101,7 @@ def send_email(only_unique_href_links: list, fetched_previously_href_links: list
             smtp_server.login(settings.EMAIL_ADDRESS, settings.EMAIL_PASSWORD)
 
             # MAJOR FUNCTION TRIGGERS MAIL SENDING
-            smtp_server.sendmail(settings.EMAIL_ADDRESS, settings.EMAIL_ADDRESS,
+            smtp_server.sendmail(settings.EMAIL_ADDRESS, settings.MARTUSIA_EMAIL,
                                  create_mail_message(only_unique_href_links))
 
         print('Success: Email sent!')
