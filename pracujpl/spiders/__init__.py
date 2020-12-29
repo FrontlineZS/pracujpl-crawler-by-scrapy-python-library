@@ -70,11 +70,10 @@ class PracujplSpider(scrapy.Spider):
             yield scrapy.Request(url=url, callback=self.parse)
 
     def parse(self, response, **kwargs):
-        filtered_actual_href_links = [href for href in get_job_link_hrefs(response) if re.search('ing bank', href)]
-
         if not os.path.exists(os.path.join(os.getcwd(), JSON_DUMP_FILE_NAME)):
             save_unique_href_links_as_json(list())
 
+        filtered_actual_href_links = [href for href in get_job_link_hrefs(response) if re.search('ing bank', href)]
         fetched_previously_href_links = get_existing_href_links_from_json()
 
         only_unique_href_links = get_unique_href_links(
