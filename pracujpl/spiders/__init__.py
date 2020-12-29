@@ -25,7 +25,7 @@ def get_job_link_hrefs(parsed_html_response: scrapy.http.response) -> list:
 
 
 # creates mail message relies on data filtered from json file
-def create_mail_message(href_links: list) -> str:
+def create_mail_message(href_links: set) -> str:
     msg = MIMEMultipart()
     msg['Subject'] = "Pracujpl__ING-Bank oferta pracy dla kociaka:))"
     msg.attach(MIMEText('\n'.join(
@@ -36,26 +36,26 @@ def create_mail_message(href_links: list) -> str:
 
 
 # saves job href links as json file
-def save_unique_href_links_as_json(new_href_links: list):
+def save_unique_href_links_as_json(new_href_links: set):
     with open(JSON_DUMP_FILE_NAME, 'w') as json_dump:
-        json.dump({JSON_HREF_LINKS_KEY: new_href_links}, json_dump)
+        json.dump({JSON_HREF_LINKS_KEY: list(new_href_links)}, json_dump)
 
     print(f'Saved new href links to json format at {DATE_FORMAT}!')
 
 
 # gets href links array fetched previously from json file
 def get_existing_href_links_from_json() -> list:
+    if not os.path.exists(os.path.join(os.getcwd(), JSON_DUMP_FILE_NAME)):
+        save_unique_href_links_as_json(set())
+
     with open(JSON_DUMP_FILE_NAME) as json_dump:
         return json.load(json_dump)[JSON_HREF_LINKS_KEY]
 
 
-# gets only unique href links by diffing arrays
-def get_unique_href_links(fetched_previously: list, filtered_actual: list) -> list:
-    return list(
-        set(filtered_actual).difference(
-            set(fetched_previously)
-        )
-    )
+# gets only unique href links by diffing sets
+def get_unique_href_links(fetched_previously: set, filtered_actual: set) -> set:
+    return filtered_actual \
+        .difference(fetched_previously)
 
 
 class PracujplSpider(scrapy.Spider):
@@ -70,15 +70,11 @@ class PracujplSpider(scrapy.Spider):
             yield scrapy.Request(url=url, callback=self.parse)
 
     def parse(self, response, **kwargs):
-        if not os.path.exists(os.path.join(os.getcwd(), JSON_DUMP_FILE_NAME)):
-            save_unique_href_links_as_json(list())
-
-        filtered_actual_href_links = [href for href in get_job_link_hrefs(response) if re.search('ing bank', href)]
-        fetched_previously_href_links = get_existing_href_links_from_json()
+        fetched_previously_href_links = set(get_existing_href_links_from_json())
 
         only_unique_href_links = get_unique_href_links(
             fetched_previously_href_links,
-            filtered_actual_href_links
+            set([href for href in get_job_link_hrefs(response) if re.search('ing bank', href)])
         )
 
         if only_unique_href_links:
@@ -89,7 +85,7 @@ class PracujplSpider(scrapy.Spider):
             self.log(f'There are no new offers. Crawler invoked at {DATE_FORMAT}!')
 
 
-def send_email(only_unique_href_links: list, fetched_previously_href_links: list):
+def send_email(only_unique_href_links: set, fetched_previously_href_links: set):
     try:
         # INITIALIZATION
         with smtplib.SMTP('smtp.gmail.com:587') as smtp_server:
@@ -97,14 +93,19 @@ def send_email(only_unique_href_links: list, fetched_previously_href_links: list
             smtp_server.starttls()
 
             # LAUNCH LOGIN TO SMTP SERVER WITH AUTHENTICATION
-            smtp_server.login(settings.EMAIL_ADDRESS, settings.EMAIL_PASSWORD)
+            smtp_server.login(settings.HOST_MAIL_ADDRESS, settings.HOST_MAIL_PASSWORD)
 
             # MAJOR FUNCTION TRIGGERS MAIL SENDING
-            smtp_server.sendmail(settings.EMAIL_ADDRESS, settings.MARTUSIA_EMAIL,
-                                 create_mail_message(only_unique_href_links))
+            smtp_server.sendmail(settings.HOST_MAIL_ADDRESS,
+                                 settings.MARTUSIA_MAIL,
+                                 create_mail_message(
+                                     only_unique_href_links
+                                 ))
 
-        print('Success: Email sent!')
+        print('Success: mail sent!')
     except smtplib.SMTPException:
-        print('Email failed to send')
+        print('Mail failed to send!')
     else:
-        save_unique_href_links_as_json(fetched_previously_href_links + only_unique_href_links)
+        save_unique_href_links_as_json(
+            fetched_previously_href_links.union(only_unique_href_links)
+        )
